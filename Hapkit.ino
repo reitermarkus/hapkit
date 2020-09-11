@@ -1,4 +1,4 @@
-#include "Position.hpp"
+#include "position.hpp"
 
 int M1 = 12; int ENA = 3;
 int M2 = 13; int ENB = 11;
@@ -8,7 +8,12 @@ int dirPin = M1;
 
 int sensorPin = A2;
 
-Position position(sensorPin);
+/// These were found be reading the sensor repeatedly
+// and calculating the min/max values.
+const int MIN_VALUE = 48;
+const int MAX_VALUE = 971;
+
+Position position(sensorPin, MIN_VALUE, MAX_VALUE);
 
 void setup() {
   Serial.begin(57600);
@@ -19,13 +24,14 @@ void setup() {
   pinMode(sensorPin, INPUT);
 
   delay(1000);
+
+  position.init();
+
+  Serial.print("Initial: ");
+  Serial.println(position.initialPosition);
 }
 
 int incData = 0;
-
-
-const int MIN_VALUE = 48;
-const int MAX_VALUE = 971;
 
 int maxi = 1777;
 
@@ -52,8 +58,16 @@ void loop() {
   double rh = 0.065659;
   double ts = -.0107 * position.updatedPosition + 4.9513;
 
-  Serial.print("Handle: ");
-  Serial.println(position.updatedPosition);
+
+  if (incData % 10000 == 0) {
+    Serial.print("Handle: ");
+    Serial.println(position.updatedPosition);
+
+    Serial.print("Temp distance: ");
+    Serial.println(position.tempDistance);
+  }
+
+
   // Serial.println(rh * (ts * 3.14159 / 180));
 
   return;
