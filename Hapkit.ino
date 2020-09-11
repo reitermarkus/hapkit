@@ -12,6 +12,12 @@ int sensorPin = A2;
 // and calculating the min/max values.
 const int MIN_VALUE = 48;
 const int MAX_VALUE = 971;
+const float POSITION_10_DEGREE_DIFFERENCE = 726.6;
+
+float positionToDegrees(int position) {
+  return position / POSITION_10_DEGREE_DIFFERENCE * 10.0;
+}
+
 
 Position position(sensorPin, MIN_VALUE, MAX_VALUE);
 
@@ -26,45 +32,27 @@ void setup() {
   delay(1000);
 
   position.init();
-
-  Serial.print("Initial: ");
-  Serial.println(position.initialPosition);
 }
 
-int incData = 0;
+int i = 0;
 
 int maxi = 1777;
 
 void loop() {
-  // if (incData > 10) {
-  //   return;
-  // }
-
-  incData++;
-
-  // if (Serial.available()) {
-  //   incData = Serial.read();
-  //
-  // }
-
-  // Serial.println(incData);
-
+  i++;
 
   position.update();
-
-  // Serial.print("Flips: ");
-  // Serial.println(position.flips);
 
   double rh = 0.065659;
   double ts = -.0107 * position.updatedPosition + 4.9513;
 
 
-  if (incData % 10000 == 0) {
-    Serial.print("Handle: ");
+  if (i % 10000 == 0) {
+    Serial.print("Handle Position: ");
     Serial.println(position.updatedPosition);
 
-    Serial.print("Temp distance: ");
-    Serial.println(position.tempDistance);
+    Serial.print("Handle Degrees: ");
+    Serial.println(positionToDegrees(position.updatedPosition));
   }
 
 

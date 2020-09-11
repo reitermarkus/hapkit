@@ -7,7 +7,6 @@ class Position {
     int currentPosition;
     bool justFlipped = false;
     int flips = 0;
-    int tempDistance = 0;
     int updatedPosition;
     int initialPosition;
     int minValue = 0;
