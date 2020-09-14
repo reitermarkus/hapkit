@@ -1,3 +1,5 @@
+#include <assert.h>
+
 class Position {
   private:
     const int FLIP_THRESHOLD = 700;
@@ -14,6 +16,9 @@ class Position {
 
     Position(int sensorPin, int minValue, int maxValue) {
       this->sensorPin = sensorPin;
+
+      assert(minValue < maxValue);
+
       this->minValue = minValue;
       this->maxValue = maxValue;
     }
@@ -38,12 +43,12 @@ class Position {
     }
 
     void update() {
-      int maxDistance = this->maxValue - this->minValue;
-      int threshold = maxDistance * 0.3;
-
       int newPosition = read();
       int currentDifference = newPosition - currentPosition;
       int currentDistance = abs(currentDifference);
+
+      int maxDistance = this->maxValue - this->minValue;
+      int threshold = maxDistance * 0.3;
 
       // Update tracking variables.
       currentPosition = newPosition;
@@ -62,6 +67,6 @@ class Position {
         justFlipped = false;
       }
 
-      updatedPosition = newPosition + flips * (maxValue - minValue) - initialPosition;
+      updatedPosition = newPosition + flips * maxDistance - initialPosition;
     }
 };
