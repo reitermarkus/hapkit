@@ -67,6 +67,51 @@ double renderWall(const double handlePosition, const double wallPosition) {
   }
 }
 
+bool wasInsideWall = false;
+unsigned long wallEntryTime = 0;
+
+double renderHardSurface(const double handlePosition, const double wallPosition) {
+  const double wallForce = renderWall(handlePosition, wallPosition);
+  const bool insideWall = wallForce != 0;
+
+  double vibrationForce = 0;
+  const double maxVibrationLength = 50;
+
+  if (insideWall) {
+    const unsigned long currentTime = millis();
+
+    if (!wasInsideWall) {
+      wallEntryTime = currentTime;
+    }
+    wasInsideWall = true;
+
+    // Serial.print("wallEntryTime: ");
+    // Serial.println(wallEntryTime);
+    // Serial.print("time diff: ");
+    // Serial.println(currentTime - wallEntryTime);
+
+    const unsigned long vibrationTime = (maxVibrationLength - min(currentTime - wallEntryTime, maxVibrationLength));
+
+    // Serial.print("vibrationTime: ");
+    // Serial.println(vibrationTime);
+
+    const double vibrationTimeRatio = (vibrationTime / maxVibrationLength);
+    // Serial.print("vibrationTimeRatio: ");
+    // Serial.println(vibrationTimeRatio);
+
+    const double cosInput = currentTime / 1000.0 * 90.0;
+
+    vibrationForce = cos(cosInput) * vibrationTimeRatio;
+
+    // Serial.print("vibrationForce: ");
+    // Serial.println(vibrationForce);
+  } else {
+    wasInsideWall = false;
+  }
+
+  return wallForce + vibrationForce;
+}
+
 double renderTexture(const double handlePosition, const double handleVelocity) {
   double w = 0.001; // width of damping area
   double bDamper = 1;
@@ -91,7 +136,7 @@ double renderCoulombFriction(const double handlePosition, const double handleVel
 }
 
 double renderViscousFriction(const double handlePosition, const double handleVelocity) {
-  const double dampingFactor = 1;
+  const double dampingFactor = 4;
 
   return -dampingFactor * handleVelocity;
 }
@@ -115,13 +160,15 @@ void loop() {
 
   // const double force = renderSpring(handlePosition);
 
-  // const double wallPosition = -0.005; // m
+  const double wallPosition = -0.005; // m
   // const double force = renderWall(handlePosition, wallPosition);
+  const double force = renderHardSurface(handlePosition, wallPosition);
 
   // const double force = renderCoulombFriction(handlePosition, handleVelocity);
   // const double force = renderViscousFriction(handlePosition, handleVelocity);
 
-  const double force = renderTexture(handlePosition, handleVelocity);
+  // const double force = renderTexture(handlePosition, handleVelocity);
+
 
   const double pulleyTorque = PULLEY_RADIUS / S_RADIUS * HANDLE_RADIUS * force;
 
@@ -130,27 +177,37 @@ void loop() {
 
   const short speed = min(max(duty, -1.0), 1.0) * 255.0;
 
-  if (i % 10000 == 0) {
-    Serial.print("Handle Position: ");
-    Serial.println(updatedPosition);
+  if (i % 1000 == 0) {
+    // Serial.print("Handle Position: ");
+    // Serial.println(updatedPosition);
+    //
+    // Serial.print("Handle (deg): ");
+    // Serial.println(handleDeg);
+    // Serial.print("Handle (rad): ");
+    // Serial.println(handleRad);
+    // Serial.print("Handle (cm): ");
+    // Serial.println(handlePosition * 100.0);
+    //
+    // Serial.print("Velocity (m/s): ");
+    // Serial.println(handleVelocity);
+    //
+    // Serial.print("Duty: ");
+    // Serial.println(duty);
+    //
+    // Serial.print("Speed: ");
+    // Serial.println(speed);
+  }
 
-    Serial.print("Handle Degrees: ");
+
+  if (i % 10 == 0) {
     Serial.print(handleDeg);
-    Serial.print(" ° (");
-    Serial.print(handleRad);
-    Serial.print(" rad, ");
-    Serial.print(handlePosition * 100.0);
-    Serial.println(" cm)");
-
-    Serial.print("Velocity: ");
+    Serial.print(",");
     Serial.print(handleVelocity);
-    Serial.println(" m/s");
-
-    Serial.print("Duty: ");
-    Serial.println(duty);
-
-    Serial.print("Speed: ");
-    Serial.println(speed);
+    Serial.print(",");
+    Serial.print(force);
+    Serial.print(",");
+    Serial.print(millis());
+    Serial.println();
   }
 
   motor.setSpeed(speed);
