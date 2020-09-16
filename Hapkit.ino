@@ -36,12 +36,9 @@ void setup() {
 
 int i = 0;
 
-int maxi = 1777;
-
 const double HANDLE_RADIUS = 0.065659; // m
 const double PULLEY_RADIUS = 0.004191; // m
 const double S_RADIUS = 0.073152; // m
-
 
 float deg2rad(float deg) {
   return deg * PI / 180.0;
@@ -60,6 +57,7 @@ double renderSpring(const double handlePosition) {
 double renderWall(const double handlePosition, const double wallPosition) {
   const double kWall = 100; // N/m
 
+  // Detect if we hit the wall, i.e. if we are inside of the wall.
   if ((wallPosition < 0 && handlePosition < wallPosition) || (wallPosition > 0 && handlePosition > wallPosition)) {
     return kWall;
   } else {
@@ -114,15 +112,17 @@ double renderHardSurface(const double handlePosition, const double wallPosition)
 
 double renderTexture(const double handlePosition, const double handleVelocity) {
   double w = 0.001; // width of damping area
-  double bDamper = 1;
+  double dampingFactor = 1;
 
-  for(int i = 0; i < 9; i = i + 2){
-    if((abs(handlePosition) > i * w) && (abs(handlePosition) < (i + 1) * w)){
-      return -bDamper * handleVelocity;
-    } else if((abs(handlePosition) > (i + 1) * w) && (abs(handlePosition) < (i + 2) * w)){
+  for (int i = 0; i < 9; i = i + 2) {
+    if ((abs(handlePosition) > i * w) && (abs(handlePosition) < (i + 1) * w)){
+      return -dampingFactor * handleVelocity;
+    } else if ((abs(handlePosition) > (i + 1) * w) && (abs(handlePosition) < (i + 2) * w)){
       return 0;
     }
   }
+
+  return 0;
 }
 
 double renderCoulombFriction(const double handlePosition, const double handleVelocity) {
