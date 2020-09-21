@@ -23,6 +23,8 @@ Position position(sensorPin, MIN_VALUE, MAX_VALUE);
 
 Motor motor(pwmPin, dirPin);
 
+unsigned long lastTime;
+
 void setup() {
   Serial.begin(57600);
 
@@ -32,6 +34,8 @@ void setup() {
   pinMode(sensorPin, INPUT);
 
   position.init();
+
+  lastTime = micros();
 }
 
 int i = 0;
@@ -40,8 +44,16 @@ const double HANDLE_RADIUS = 0.065659; // m
 const double PULLEY_RADIUS = 0.004191; // m
 const double S_RADIUS = 0.073152; // m
 
-float deg2rad(float deg) {
+inline double deg2rad(double deg) {
   return deg * PI / 180.0;
+}
+
+inline double deg2pos(double deg) {
+  return rad2pos(deg2rad(deg));
+}
+
+inline double rad2pos(double rad) {
+  return rad * HANDLE_RADIUS;
 }
 
 double lastHandlePosition = 0.0;
@@ -55,11 +67,11 @@ double renderSpring(const double handlePosition) {
 }
 
 double renderWall(const double handlePosition, const double wallPosition) {
-  const double kWall = 100; // N/m
+  const double kWall = 400; // N/m
 
   // Detect if we hit the wall, i.e. if we are inside of the wall.
   if ((wallPosition < 0 && handlePosition < wallPosition) || (wallPosition > 0 && handlePosition > wallPosition)) {
-    return kWall;
+    return -kWall * handlePosition;
   } else {
     return 0;
   }
@@ -141,6 +153,56 @@ double renderViscousFriction(const double handlePosition, const double handleVel
   return -dampingFactor * handleVelocity;
 }
 
+
+double totalError = 0;
+double lastError = 0;
+
+double control(const double error, const double kF, const double kP, const double kI, const double kD) {
+
+  const unsigned long currentTime = micros(); // µs
+  const double currentError = error;
+
+  const double timeDiff = (currentTime - lastTime) / 1000000.0; // s
+  const double errorDiff = currentError - lastError; // m
+  const double errorSpeed = errorDiff / timeDiff; // m/s
+
+  totalError += error * timeDiff;
+
+  const double output = (-kP * error) + (-kI * totalError) + (-kD * errorSpeed) + (-kF * (signbit(error) ? -1 : 1));
+
+  lastTime = currentTime;
+  lastError = currentError;
+
+  return output;
+}
+
+double pControl(const double error) {
+  const double kF =  0.1;
+  const double kP = 30.0;
+  const double kI =  0.0;
+  const double kD =  0.0;
+
+  return control(error, kF, kP, kI, kD);
+}
+
+double pdControl(const double error) {
+  const double kF =  0.1;
+  const double kP = 30.0;
+  const double kI =  0.0;
+  const double kD =  1.1;
+
+  return control(error, kF, kP, kI, kD);
+}
+
+double pidControl(const double error) {
+  const double kF =  0.1;
+  const double kP = 30.0;
+  const double kI =  2.0;
+  const double kD =  1.1;
+
+  return control(error, kF, kP, kI, kD);
+}
+
 void loop() {
   i++;
 
@@ -149,7 +211,7 @@ void loop() {
   const int updatedPosition = position.updatedPosition;
   const float handleDeg = positionToDegrees(updatedPosition);
   const float handleRad = deg2rad(handleDeg);
-  const double handlePosition = HANDLE_RADIUS * handleRad;
+  const double handlePosition = rad2pos(handleRad);
 
   handleVelocity = -(0.95 * 0.95) * lastLastHandleVelocity +
                    2 * 0.95 * lastHandleVelocity +
@@ -160,15 +222,21 @@ void loop() {
 
   // const double force = renderSpring(handlePosition);
 
-  const double wallPosition = -0.005; // m
+  // const double wallPosition = -0.005; // m
   // const double force = renderWall(handlePosition, wallPosition);
-  const double force = renderHardSurface(handlePosition, wallPosition);
+  // const double force = renderHardSurface(handlePosition, wallPosition);
 
   // const double force = renderCoulombFriction(handlePosition, handleVelocity);
   // const double force = renderViscousFriction(handlePosition, handleVelocity);
 
   // const double force = renderTexture(handlePosition, handleVelocity);
 
+  const double targetPosition = deg2pos(20);
+  const double error = handlePosition - targetPosition;
+
+  // const double force = pControl(error);
+  // const double force = pdControl(error);
+  const double force = pidControl(error);
 
   const double pulleyTorque = PULLEY_RADIUS / S_RADIUS * HANDLE_RADIUS * force;
 
@@ -178,6 +246,9 @@ void loop() {
   const short speed = min(max(duty, -1.0), 1.0) * 255.0;
 
   if (i % 1000 == 0) {
+    // Serial.print("Total Error: ");
+    // Serial.println(totalError, 10);
+
     // Serial.print("Handle Position: ");
     // Serial.println(updatedPosition);
     //
@@ -199,7 +270,7 @@ void loop() {
   }
 
 
-  if (i % 10 == 0) {
+  if (i % 50 == 0) {
     Serial.print(handleDeg);
     Serial.print(",");
     Serial.print(handleVelocity);
