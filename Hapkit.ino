@@ -1,5 +1,6 @@
 #include "motor.hpp"
 #include "position.hpp"
+#include "state.hpp"
 
 int M1 = 12; int ENA = 3;
 int M2 = 13; int ENB = 11;
@@ -48,12 +49,24 @@ inline double deg2rad(double deg) {
   return deg * PI / 180.0;
 }
 
+inline double rad2deg(double rad) {
+  return rad / PI * 180.0;
+}
+
 inline double deg2pos(double deg) {
   return rad2pos(deg2rad(deg));
 }
 
 inline double rad2pos(double rad) {
   return rad * HANDLE_RADIUS;
+}
+
+inline double pos2rad(double pos) {
+  return pos / HANDLE_RADIUS;
+}
+
+inline double pos2deg(double pos) {
+  return rad2deg(pos2rad(pos));
 }
 
 double lastHandlePosition = 0.0;
@@ -67,7 +80,7 @@ double renderSpring(const double handlePosition) {
 }
 
 double renderWall(const double handlePosition, const double wallPosition) {
-  const double kWall = 400; // N/m
+  const double kWall = 50; // N/m
 
   // Detect if we hit the wall, i.e. if we are inside of the wall.
   if ((wallPosition < 0 && handlePosition < wallPosition) || (wallPosition > 0 && handlePosition > wallPosition)) {
@@ -187,9 +200,9 @@ double pControl(const double error) {
 
 double pdControl(const double error) {
   const double kF =  0.1;
-  const double kP = 30.0;
+  const double kP = 50.0;
   const double kI =  0.0;
-  const double kD =  1.1;
+  const double kD =  2.5;
 
   return control(error, kF, kP, kI, kD);
 }
@@ -201,6 +214,71 @@ double pidControl(const double error) {
   const double kD =  1.1;
 
   return control(error, kF, kP, kI, kD);
+}
+
+String command;
+
+String receiveCommand() {
+  if (!Serial.available()) {
+    return "";
+  }
+
+  char c = Serial.read();
+
+  if (c == '\r' || c == '\n') {
+    String currentCommand = command;
+    command = "";
+    return currentCommand;
+  } else {
+    command += c;
+    return "";
+  }
+}
+
+double targetPosition = deg2pos(0);
+
+State currentState = STOPPED;
+
+double DOWN_UNTIL_END_POSITION = 30.0;
+double UP_UNTIL_END_POSITION = -DOWN_UNTIL_END_POSITION;
+double DOWN_WHILE_PRESSED_POSITION = 5.0;
+double UP_WHILE_PRESSED_POSITION = -DOWN_WHILE_PRESSED_POSITION;
+
+bool ignoreStateChangesUntilNewStateReached = false;
+
+void changeState(enum State newState, bool force = false) {
+  if (ignoreStateChangesUntilNewStateReached && newState != currentState) {
+    return;
+  }
+
+  ignoreStateChangesUntilNewStateReached = false;
+
+  if (currentState == newState) {
+    return;
+  }
+
+  Serial.print("Changing state from ");
+  Serial.print(currentState);
+  Serial.print(" to ");
+  Serial.println(newState);
+
+  if (newState == DOWN_WHILE_PRESSED || newState == DOWN_UNTIL_END) {
+    Serial.println("send-command: down");
+  } else if (newState == UP_WHILE_PRESSED || newState == UP_UNTIL_END) {
+    Serial.println("send-command: up");
+  } else if (newState == STOPPED) {
+    Serial.println("send-command: stop");
+  }
+
+  if (newState == DOWN_UNTIL_END) {
+    targetPosition = deg2pos(DOWN_UNTIL_END_POSITION);
+  } else if (newState == UP_UNTIL_END) {
+    targetPosition = deg2pos(UP_UNTIL_END_POSITION);
+  } else if (newState == STOPPED || (currentState == UP_UNTIL_END && newState == UP_WHILE_PRESSED) || (currentState == DOWN_UNTIL_END && newState == DOWN_WHILE_PRESSED)) {
+    targetPosition = deg2pos(0.0);
+  }
+
+  currentState = newState;
 }
 
 void loop() {
@@ -231,12 +309,20 @@ void loop() {
 
   // const double force = renderTexture(handlePosition, handleVelocity);
 
-  const double targetPosition = deg2pos(20);
   const double error = handlePosition - targetPosition;
+  double force = pdControl(error);
 
-  // const double force = pControl(error);
-  // const double force = pdControl(error);
-  const double force = pidControl(error);
+  if (currentState == DOWN_WHILE_PRESSED) {
+    force += renderWall(handlePosition, deg2pos(DOWN_WHILE_PRESSED_POSITION));
+  } else if (currentState == UP_WHILE_PRESSED) {
+    force += renderWall(handlePosition, deg2pos(UP_WHILE_PRESSED_POSITION));
+  } else if (currentState == DOWN_UNTIL_END) {
+    force += renderWall(handlePosition, deg2pos(DOWN_UNTIL_END_POSITION + 5.0));
+  } else if (currentState == UP_UNTIL_END) {
+    force += renderWall(handlePosition, deg2pos(UP_UNTIL_END_POSITION - 5.0));
+  }
+
+  // const double force = pidControl(error);
 
   const double pulleyTorque = PULLEY_RADIUS / S_RADIUS * HANDLE_RADIUS * force;
 
@@ -245,7 +331,50 @@ void loop() {
 
   const short speed = min(max(duty, -1.0), 1.0) * 255.0;
 
+  auto command = receiveCommand();
+
+  if (command != "") {
+    Serial.print("Command: '");
+    Serial.print(command);
+    Serial.println("'");
+
+    if (command == "up") {
+      changeState(UP_UNTIL_END, true);
+      ignoreStateChangesUntilNewStateReached = true;
+    } else if (command == "stop") {
+      changeState(STOPPED, true);
+      ignoreStateChangesUntilNewStateReached = true;
+    } else if (command == "down") {
+      changeState(DOWN_UNTIL_END, true);
+      ignoreStateChangesUntilNewStateReached = true;
+    }
+  }
+
+  const bool down = direction < 0;
+  const bool up = !down;
+
+  if (handleDeg > (DOWN_UNTIL_END_POSITION - 5.0)) {
+    changeState(DOWN_UNTIL_END);
+  } else if (handleDeg < UP_UNTIL_END_POSITION + 5.0) {
+    changeState(UP_UNTIL_END);
+  } else if (handleDeg > DOWN_WHILE_PRESSED_POSITION) {
+    changeState(DOWN_WHILE_PRESSED);
+  } else if (handleDeg < UP_WHILE_PRESSED_POSITION) {
+    changeState(UP_WHILE_PRESSED);
+  } else if (abs(handleDeg) < abs(DOWN_WHILE_PRESSED_POSITION) - 3.0) {
+    changeState(STOPPED);
+  }
+
   if (i % 1000 == 0) {
+    // Serial.print("POS: ");
+    // Serial.println(handleDeg);
+    //
+    // Serial.print("TARGET DEG: ");
+    // Serial.println(pos2deg(targetPosition));
+    //
+    // Serial.print("state: ");
+    // Serial.println(currentState);
+
     // Serial.print("Total Error: ");
     // Serial.println(totalError, 10);
 
@@ -271,14 +400,16 @@ void loop() {
 
 
   if (i % 50 == 0) {
-    Serial.print(handleDeg);
-    Serial.print(",");
-    Serial.print(handleVelocity);
-    Serial.print(",");
-    Serial.print(force);
-    Serial.print(",");
-    Serial.print(millis());
-    Serial.println();
+
+
+    // Serial.print(handleDeg);
+    // Serial.print(",");
+    // Serial.print(handleVelocity);
+    // Serial.print(",");
+    // Serial.print(force);
+    // Serial.print(",");
+    // Serial.print(millis());
+    // Serial.println();
   }
 
   motor.setSpeed(speed);

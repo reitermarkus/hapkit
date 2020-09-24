@@ -1,0 +1,15 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    ffi (1.13.1)
+    rubyserial (0.6.0)
+      ffi (~> 1.9, >= 1.9.3)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  rubyserial
+
+BUNDLED WITH
+   2.1.4

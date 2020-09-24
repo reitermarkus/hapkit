@@ -1,5 +1,4 @@
-BAUD_RATE = 57600
-SERIAL_PORT = '/dev/cu.usbserial-AG0JJ882'
+require_relative 'config'
 
 task :install_toolchain do
   sh 'arduino-cli', 'core', 'install', 'arduino:avr'

@@ -1,1 +1,4 @@
 build
+
+.bundle
+state.json

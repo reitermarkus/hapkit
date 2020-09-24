@@ -1,0 +1,5 @@
+BAUD_RATE = 57600
+SERIAL_PORT = '/dev/cu.usbserial-AG0JJ882'
+
+ITACH_IP = '10.0.0.121'
+ITACH_PORT = 3
