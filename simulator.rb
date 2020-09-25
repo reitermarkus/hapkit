@@ -61,7 +61,7 @@ class ProjectionScreen
   private :write_command
 end
 
-class Door
+class Device
   include Observable
 
   STATE_FILE = Pathname(__dir__)/'state.json'
@@ -153,16 +153,16 @@ class Controller
   end
 
   def update(state, state_sym)
-    puts "Door is now #{state_sym}."
+    puts "Device is now #{state_sym}."
     @state == state_sym
-    @arduino.write "stop\n"
+    @arduino.write "command: stop\n"
   end
 
   def run
     while line = @arduino.gets
       puts line
 
-      if command = line[/^send-command: (.*)$/, 1]&.chomp&.to_sym
+      if command = line[/^command: (.*)$/, 1]&.chomp&.to_sym
         case command
         when :up, :stop, :down
           puts "Received command: #{command.inspect}"
@@ -182,7 +182,7 @@ end
 real_device = ProjectionScreen.new(ITACH_IP, ITACH_PORT) rescue nil
 
 arduino = Serial.new SERIAL_PORT, BAUD_RATE
-door = Door.new(real_device)
+door = Device.new(real_device)
 
 controller = Controller.new(arduino, door)
 controller.run

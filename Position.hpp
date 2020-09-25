@@ -1,9 +1,6 @@
 #include <assert.h>
 
 class Position {
-  private:
-    const int FLIP_THRESHOLD = 700;
-
   public:
     int sensorPin;
     int currentPosition;
