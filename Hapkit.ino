@@ -152,10 +152,13 @@ void loop() {
 
   if (command != "") {
     if (command == "command: up") {
+      Serial.println("Hapkit received command: up");
       changeState(UP_UNTIL_END, true);
     } else if (command == "command: stop") {
+      Serial.println("Hapkit received command: stop");
       changeState(STOPPED, true);
     } else if (command == "command: down") {
+      Serial.println("Hapkit received command: down");
       changeState(DOWN_UNTIL_END, true);
     }
   }

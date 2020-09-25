@@ -165,7 +165,7 @@ class Controller
       if command = line[/^command: (.*)$/, 1]&.chomp&.to_sym
         case command
         when :up, :stop, :down
-          puts "Received command: #{command.inspect}"
+          puts "Controller received command: #{command.inspect}"
           @door.public_send(command)
         else
           warn "Unknown command: #{command.inspect}"
